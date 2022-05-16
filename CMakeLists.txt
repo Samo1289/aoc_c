@@ -1,0 +1,21 @@
+cmake_minimum_required (VERSION 3.19)
+project (AOC)
+
+add_compile_options(-Wall -Wextra -Werror -pedantic)
+
+add_subdirectory(aoc_1)
+add_subdirectory(aoc_2)
+add_subdirectory(aoc_3)
+#add_subdirectory(aoc_4)
+#add_subdirectory(aoc_5)
+#add_subdirectory(aoc_6)
+#add_subdirectory(aoc_7)
+#add_subdirectory(aoc_8)
+#add_subdirectory(aoc_9)
+#add_subdirectory(aoc_10)
+#add_subdirectory(aoc_11)
+#add_subdirectory(aoc_12)
+#add_subdirectory(aoc_13)
+#add_subdirectory(aoc_14)
+#add_subdirectory(aoc_15)
+
