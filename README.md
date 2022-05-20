@@ -3,4 +3,5 @@ How to build:
   * mkdir build && cd build/
   * cmake ..
   * cmake --build . -- -j
+
 output binaries are generated in their respective folders {aoc1, aoc2, aoc3}
