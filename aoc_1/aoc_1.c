@@ -7,9 +7,8 @@
 /// I assume all the console printing functions always work (if not for some
 /// special occasions) and I will check return value of other functions
 
-/// TODO C returns
-
-int32_t safe_add(int32_t *const a, int32_t const b) {
+int32_t
+safe_add(int32_t* const a, int32_t const b) {
   assert(a);
 
   int32_t prev = *a;
@@ -22,11 +21,11 @@ int32_t safe_add(int32_t *const a, int32_t const b) {
 }
 
 typedef struct {
-  int32_t *buffer_ptr;
-  uint32_t buffer_size;
-  uint32_t buffer_current_index;
-  int32_t buffer_sum;
-  int8_t buffer_full;
+  int32_t *ptr;
+  uint32_t size;
+  uint32_t current_index;
+  int32_t sum;
+  int8_t is_full;
 } SlidingSumBuffer;
 
 int32_t create_buffer(SlidingSumBuffer *buffer_inst,
@@ -41,66 +40,67 @@ int32_t create_buffer(SlidingSumBuffer *buffer_inst,
     return -1;
   }
 
-  buffer_inst->buffer_ptr = malloc(sizeof(uint32_t) * buffer_size);
-  if (!buffer_inst->buffer_ptr) {
+  buffer_inst->ptr = malloc(sizeof(uint32_t) * buffer_size);
+  if (!buffer_inst->ptr) {
     return -1;
   }
 
-  buffer_inst->buffer_size = buffer_size;
-  buffer_inst->buffer_current_index = 0;
-  buffer_inst->buffer_sum = 0;
-  buffer_inst->buffer_full = 0;
+  buffer_inst->size = buffer_size;
+  buffer_inst->current_index = 0;
+  buffer_inst->sum = 0;
+  buffer_inst->is_full = 0;
 
   return 0;
 }
 
-int32_t
-add_to_buffer(SlidingSumBuffer *buffer_inst, int32_t const value) {
-  assert(buffer_inst->buffer_ptr);
+int32_t add_to_buffer(SlidingSumBuffer *buffer_inst, int32_t const value) {
+  assert(buffer_inst->ptr);
 
   // if not buffer full
-  if (!buffer_inst->buffer_full) {
-    buffer_inst->buffer_ptr[buffer_inst->buffer_current_index++] = value;
-    if (safe_add(&buffer_inst->buffer_sum, value)) {
+  if (!buffer_inst->is_full) {
+    buffer_inst->ptr[buffer_inst->current_index++] = value;
+    if (safe_add(&buffer_inst->sum, value)) {
       return -1;
     }
-    if (buffer_inst->buffer_current_index >= (buffer_inst->buffer_size - 1)) {
-      buffer_inst->buffer_full = 1;
+    if (buffer_inst->current_index >= (buffer_inst->size - 1)) {
+      buffer_inst->is_full = 1;
     }
   } else {
-    if (++buffer_inst->buffer_current_index > (buffer_inst->buffer_size - 1)) {
-      buffer_inst->buffer_current_index = 0;
+    if (++buffer_inst->current_index > (buffer_inst->size - 1)) {
+      buffer_inst->current_index = 0;
     }
-    buffer_inst->buffer_sum -=
-        buffer_inst->buffer_ptr[buffer_inst->buffer_current_index];
-    if (safe_add(&buffer_inst->buffer_sum, value)) {
+
+    buffer_inst->sum -= buffer_inst->ptr[buffer_inst->current_index];
+
+    if (safe_add(&buffer_inst->sum, value)) {
       return -1;
     }
-    buffer_inst->buffer_ptr[buffer_inst->buffer_current_index] = value;
+    buffer_inst->ptr[buffer_inst->current_index] = value;
   }
   return 0;
 }
 
 void reset_buffer(SlidingSumBuffer *buffer_inst) {
-  free(buffer_inst->buffer_ptr);
-  buffer_inst->buffer_size = 0;
-  buffer_inst->buffer_sum = 0;
-  buffer_inst->buffer_full = 0;
-  buffer_inst->buffer_current_index = 0;
+  free(buffer_inst->ptr);
+  buffer_inst->size = 0;
+  buffer_inst->sum = 0;
+  buffer_inst->is_full = 0;
+  buffer_inst->current_index = 0;
 }
 
 int32_t solution_with_buffer(FILE *file_ptr, int32_t const window_size) {
 
   SlidingSumBuffer buffer;
 
-  if (0 != create_buffer(&buffer, window_size)) {
+  if (create_buffer(&buffer, window_size)) {
     fprintf(stderr, "Could not create buffer for sliding window\n");
     return -1;
   }
 
   int32_t increases = 0;
 
-  // TODO explain ensure no underflow on empty file will occur
+  // add one to the minimal value, to handle corner case,
+  // as we are always decrementing the value
   int32_t previous = INT32_MIN + 1;
 
   char line[16] = {0};
@@ -111,15 +111,24 @@ int32_t solution_with_buffer(FILE *file_ptr, int32_t const window_size) {
     // trim out newline
     line[strcspn(line, "\n")] = 0;
     int32_t number = (int32_t)strtol(line, NULL, 10);
-// todo readout strtol
+    if (errno) { // EINVAL, ERANGE
+      char msg[50];
+      if (0 > snprintf(msg, 50, "Cannot convert %s to number", line)) {
+        perror("snprintf failed");
+      } else {
+        perror(msg);
+      }
+      goto ERR;
+    }
+
     if (!add_to_buffer(&buffer, number)) {
-      if (buffer.buffer_full) {
-        if (previous < buffer.buffer_sum) {
+      if (buffer.is_full) {
+        if (previous < buffer.sum) {
           if (safe_add(&increases, 1)) {
             goto ERR;
           }
         }
-        previous = buffer.buffer_sum;
+        previous = buffer.sum;
       }
     } else {
       fprintf(stderr, "Buffer sum overflowed\n");
@@ -136,7 +145,8 @@ int32_t solution_with_buffer(FILE *file_ptr, int32_t const window_size) {
   --increases;
 
   // we should be returning only positive number in regard to problem nature
-  return ((increases >= 0) ? increases : -1);
+  // negative value indicates error
+  return increases;
 
 ERR:
   reset_buffer(&buffer);
@@ -159,7 +169,7 @@ int main() {
     fprintf(stderr, "Program failed...\n");
     goto ERR;
   }
-  printf("result to question 1 is: %d\n", result);
+  printf("solution for question 1 is: %d\n", result);
 
   rewind(file_ptr); // let's read the file again
 
@@ -170,7 +180,7 @@ int main() {
     fprintf(stderr, "Program failed...\n");
     goto ERR;
   }
-  printf("result to question 2 is: %d\n", result);
+  printf("solution for question 2 is: %d\n", result);
 
   if (fclose(file_ptr)) { // close the file
     perror("Error during fclose");
